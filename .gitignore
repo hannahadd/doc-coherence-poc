@@ -1,0 +1,15 @@
+# env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# modèles & data 
+models/
+assets/models/
+data/*.pdf
+*.pdf
+
+# outputs
+*.json
+*.log
