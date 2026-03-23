@@ -87,3 +87,4 @@ doc_coherence_poc/
 - Aucune requête réseau n'est effectuée.
 - Aucun appel à un service cloud / LLM externe.
 - Les fichiers uploadés sont traités en mémoire et ne sont pas envoyés ailleurs.
+# comparaison-doc
