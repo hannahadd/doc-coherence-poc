@@ -28,20 +28,27 @@ def compute_scores(
     else:
         skill_cov = 0.0
 
-    # TF-IDF (debug / signal complémentaire)
+    # TF-IDF (signal complémentaire)
     tfidf_sim = _safe_cosine(job_text, cv_text)
 
-    # Score final : sémantique prioritaire + un peu de skills
-    # - semantic_coverage: répond à "est-ce que les points de l'offre sont couverts"
-    # - semantic_score: match global moyen
-    # - skill_cov: garde un signal explicable sur les termes attendus
-    score = 0.55 * semantic_coverage + 0.30 * semantic_score + 0.15 * skill_cov
+    # ── Scores affichés à l'utilisateur RH ────────────────────────────────────
+    # skill_score : proportion des compétences explicites de l'offre trouvées dans le CV
+    skill_score = skill_cov
+
+    # semantic_display_score : alignement du vocabulaire et des expériences
+    # (moyenne embeddings + TF-IDF pour lisser les artefacts de chaque méthode)
+    semantic_display_score = (semantic_score + tfidf_sim) / 2
+
+    # ── Score global (usage interne : classement uniquement) ──────────────────
+    score = skill_score * 0.70 + semantic_display_score * 0.30
 
     return {
         "semantic_coverage": float(semantic_coverage),
         "semantic_score": float(semantic_score),
         "skill_coverage": float(skill_cov),
         "text_similarity": float(tfidf_sim),
+        "skill_score": float(skill_score),
+        "semantic_display_score": float(semantic_display_score),
         "score": float(score),
         "score_pct": round(score * 100, 1),
     }

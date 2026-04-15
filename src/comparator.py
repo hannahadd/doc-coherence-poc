@@ -22,8 +22,7 @@ def compare_texts(
     skill_ref: SkillReference,
     emb_model: SentenceTransformer,
     semantic_threshold: float = 0.35,
-    chunk_size_words: int = 220,
-    overlap_words: int = 60,
+    breakpoint_percentile: int = 95,
 ) -> CompareResult:
     # 1) Skills-based (explicable)
     cv_skills = skill_ref.extract(cv_text)
@@ -32,14 +31,13 @@ def compare_texts(
     matched = sorted(list(cv_skills & job_skills))
     missing = sorted(list(job_skills - cv_skills))
 
-    # 2) Sémantique (embeddings + FAISS)
+    # 2) Sémantique (chunking sémantique + embeddings + FAISS)
     sem = semantic_compare(
         cv_text=cv_text,
         job_text=job_text,
         model=emb_model,
         threshold=semantic_threshold,
-        chunk_size_words=chunk_size_words,
-        overlap_words=overlap_words,
+        breakpoint_percentile=breakpoint_percentile,
         top_k=1,
     )
 

@@ -1,0 +1,39 @@
+# ── Environnement virtuel Python (CRITIQUE : plusieurs Go) ────
+.venv/
+venv/
+env/
+
+# ── Git ───────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── Cache Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+
+# ── Outils de dev / IDE ───────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Tests (pas utiles dans l'image de prod) ───────────────────
+tests/
+
+# ── Fichiers temporaires / logs ───────────────────────────────
+*.log
+*.tmp
+tmp/
+
+# ── Secrets (ne jamais embarquer) ────────────────────────────
+.env
+.env.*
+secrets/
+
+# ── Inputs utilisateur (pas utile dans l'image) ──────────────
+inputs/

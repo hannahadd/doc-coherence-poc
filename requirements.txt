@@ -7,3 +7,10 @@ numpy==2.0.2
 sentence-transformers==3.0.1
 faiss-cpu==1.8.0.post1
 torch==2.3.1
+# multimodal
+Pillow>=10.0.0
+pytesseract>=0.3.10
+python-docx>=1.1.0
+# LLM
+mistralai>=1.0.0
+python-dotenv>=1.0.0
