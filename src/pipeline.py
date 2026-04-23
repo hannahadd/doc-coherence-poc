@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import requests
 from pathlib import Path
 from typing import Optional
 
@@ -27,7 +28,7 @@ from src.comparator import compare_texts
 from src.doc_reader import extract_from_bytes, ExtractedDoc
 from src.skills_reference import SkillReference
 
-# Charge MISTRAL_API_KEY depuis .env s'il existe (sans écraser les vars d'env existantes)
+# Charge les variables d'env depuis .env s'il existe (sans écraser les vars d'env existantes)
 load_dotenv(override=False)
 
 
@@ -35,6 +36,96 @@ load_dotenv(override=False)
 
 def _clip(text: str, max_chars: int = 6000) -> str:
     return (text or "")[:max_chars]
+
+
+# ── Abstraction LLM (Mistral public ou chatbot interne MBDA) ─────────────────
+
+_llm_call_count: int = 0  # compteur de session, remis à zéro par reset_llm_counter()
+
+
+def reset_llm_counter() -> None:
+    global _llm_call_count
+    _llm_call_count = 0
+
+
+def get_llm_call_count() -> int:
+    return _llm_call_count
+
+
+def call_llm(prompt: str) -> str:
+    """
+    Appelle le fournisseur LLM configuré via LLM_PROVIDER.
+
+    Returns:
+        Texte généré.
+    Raises:
+        ValueError  : configuration manquante ou invalide.
+        Exception   : toute erreur réseau / API (propagée telle quelle).
+    """
+    global _llm_call_count
+    _llm_call_count += 1
+    print(f"[LLM CALL #{_llm_call_count}] prompt length: {len(prompt)} chars", flush=True)
+
+    provider = os.getenv("LLM_PROVIDER", "mistral").strip().lower()
+
+    if provider == "internal":
+        url   = os.getenv("INTERNAL_LLM_URL", "").strip()
+        token = os.getenv("INTERNAL_LLM_TOKEN", "").strip()
+        model = os.getenv("INTERNAL_LLM_MODEL", "Mistral-Small-3.1").strip()
+
+        if not url or not token:
+            raise ValueError(
+                "INTERNAL_LLM_URL ou INTERNAL_LLM_TOKEN manquant dans .env — "
+                "renseignez ces deux variables pour utiliser le chatbot interne MBDA."
+            )
+
+        response = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+            },
+            timeout=60,
+            verify=False,
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+
+    else:  # mistral public API
+        _PLACEHOLDER = "your-mistral-api-key-here"
+        api_key = os.environ.get("MISTRAL_API_KEY", "").strip()
+
+        if not api_key:
+            raise ValueError(
+                "MISTRAL_API_KEY manquante — "
+                "ajoutez MISTRAL_API_KEY=sk-... dans le fichier .env et relancez l'application."
+            )
+        if api_key == _PLACEHOLDER:
+            raise ValueError(
+                f"MISTRAL_API_KEY contient la valeur placeholder du template (\"{_PLACEHOLDER}\"). "
+                "Remplacez-la par votre vraie clé sur https://console.mistral.ai/api-keys"
+            )
+        if len(api_key) < 32:
+            raise ValueError(
+                f"MISTRAL_API_KEY semble invalide : longueur {len(api_key)} caractères "
+                f"(valeur actuelle : \"{api_key[:6]}…\"). "
+                "Une clé Mistral valide fait au moins 32 caractères."
+            )
+
+        from mistralai import Mistral
+        client = Mistral(api_key=api_key)
+        response = client.chat.complete(
+            model=MISTRAL_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        content = response.choices[0].message.content
+        return content.strip() if content else ""
 
 
 # ── LLM local (Ollama) — conservé pour rollback ───────────────────────────────
@@ -243,17 +334,14 @@ Mauvais exemple : "Avez-vous utilisé Kubernetes ?"
 Bon exemple : "Dans votre rôle chez [entreprise mentionnée dans le CV], vous mentionnez avoir géré des déploiements — sur quelle infrastructure reposaient-ils, et aviez-vous la main sur la configuration des environnements ?"
 """.strip()
 
-    # ── Appel Mistral API ──────────────────────────────────────────────────────
-    out, err = run_mistral(prompt, temperature=0.3)
-    if out:
+    # ── Appel LLM (provider configuré via LLM_PROVIDER) ───────────────────────
+    try:
+        import traceback
+        out = call_llm(prompt)
         return out, None
-
-    # ── Ollama — rollback (décommenter si besoin) ──────────────────────────────
-    # out, err = run_ollama(model=..., prompt=prompt, timeout_s=120)
-    # if out:
-    #     return out, None
-
-    return None, err
+    except Exception as exc:
+        traceback.print_exc()
+        return None, f"{type(exc).__name__}: {exc}"
 
 
 # ── Pipeline principal ────────────────────────────────────────────────────────

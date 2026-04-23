@@ -20,9 +20,11 @@ from sentence_transformers import SentenceTransformer
 
 from src.doc_reader import extract_from_bytes
 from src.skills_reference import SkillReference
-from src.pipeline import analyze_candidate
-from src.gestmax_parser import parse_gestmax_export, match_cv_to_candidate
+from src.pipeline import analyze_candidate, reset_llm_counter, get_llm_call_count
 from src.job_offer_parser import extract_profil_section
+
+# ── Charte TriCV ──────────────────────────────────────────────────────────────
+from styles import CSS, HEADER_HTML, TOPBAR_HTML, SIDEBAR_BRAND_HTML, SIDEBAR_FOOTER_HTML
 
 
 # Force offline pour HF/Transformers (si le modèle est local, aucun souci)
@@ -30,239 +32,19 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 st.set_page_config(
-    page_title="Analyse CV / Offre — Outil RH",
+    page_title="TriCV — Analyse CV / Offre",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ── Injection CSS ─────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-/* ── Base ───────────────────────────────────────────── */
-.stApp {
-    font-family: 'Arial', 'Helvetica Neue', sans-serif;
-    background-color: #EDEAE5;
-    background-image: radial-gradient(ellipse 70% 40% at 100% 0%,
-        rgba(230, 51, 41, 0.05) 0%, transparent 60%);
-}
-#MainMenu, footer, header { visibility: hidden; }
+st.markdown(CSS, unsafe_allow_html=True)
 
-/* ── Sidebar : dégradé noir profond ──────────────────── */
-[data-testid="stSidebar"] {
-    background: linear-gradient(160deg, #1A1815 0%, #252220 60%, #1A1815 100%) !important;
-    border-right: 1px solid rgba(230, 51, 41, 0.2) !important;
-}
-[data-testid="stSidebar"] *, [data-testid="stSidebar"] label,
-[data-testid="stSidebar"] p, [data-testid="stSidebar"] span {
-    color: #FFFFFF !important;
-}
-[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.08) !important; }
-[data-testid="stSidebar"] input[type="text"] {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.15) !important;
-    border-radius: 4px !important;
-    color: #FFFFFF !important;
-}
+# ── Topbar persistant (reste visible même quand la sidebar est fermée) ────────
+st.markdown(TOPBAR_HTML, unsafe_allow_html=True)
 
-/* ── Métriques : cartes sombres avec dégradé ─────────── */
-[data-testid="metric-container"] {
-    background: linear-gradient(135deg, #282522 0%, #322F2B 100%);
-    border: none;
-    border-left: 3px solid #E63329;
-    border-radius: 2px;
-    padding: 1.4rem 1.8rem;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12);
-    position: relative;
-    overflow: hidden;
-}
-[data-testid="metric-container"]::after {
-    content: "";
-    position: absolute;
-    top: 0; right: 0;
-    width: 60%; height: 100%;
-    background: radial-gradient(ellipse at top right,
-        rgba(230, 51, 41, 0.08) 0%, transparent 70%);
-    pointer-events: none;
-}
-[data-testid="metric-container"] [data-testid="stMetricValue"] {
-    color: #FFFFFF;
-    font-size: 2.2rem;
-    font-weight: 700;
-}
-[data-testid="metric-container"] [data-testid="stMetricLabel"] {
-    color: rgba(255,255,255,0.45);
-    font-weight: 700;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-}
-[data-testid="metric-container"] [data-testid="stMetricDelta"] {
-    color: rgba(255,255,255,0.55);
-    font-size: 0.82rem;
-}
-
-/* ── Boutons MBDA plein rouge ────────────────────────── */
-.stButton > button, .stDownloadButton > button {
-    background: linear-gradient(135deg, #E63329 0%, #CC2D24 100%) !important;
-    color: #FFFFFF !important;
-    border: none !important;
-    border-radius: 2px !important;
-    font-weight: 700 !important;
-    font-family: 'Arial', 'Helvetica Neue', sans-serif !important;
-    padding: 0.6rem 2rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 1px !important;
-    font-size: 0.78rem !important;
-    box-shadow: 0 4px 16px rgba(230, 51, 41, 0.35) !important;
-    transition: all 0.2s ease !important;
-}
-.stButton > button:hover, .stDownloadButton > button:hover {
-    box-shadow: 0 6px 24px rgba(230, 51, 41, 0.55) !important;
-    transform: translateY(-1px) !important;
-}
-
-/* ── Tabs ────────────────────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 0;
-    background: transparent;
-    border-bottom: 1px solid #E0E0E0;
-}
-.stTabs [data-baseweb="tab"] {
-    background: transparent;
-    color: #999999;
-    font-weight: 700;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 0.8rem 2rem;
-    border: none;
-    border-radius: 0;
-    transition: color 0.15s;
-}
-.stTabs [aria-selected="true"] {
-    background: transparent !important;
-    color: #000000 !important;
-    border-bottom: 3px solid #E63329 !important;
-}
-
-/* ── Expander ────────────────────────────────────────── */
-[data-testid="stExpander"] {
-    background: rgba(255,255,255,0.7) !important;
-    backdrop-filter: blur(8px) !important;
-    border: 1px solid #E0E0E0 !important;
-    border-top: 2px solid #333333 !important;
-    border-radius: 0 !important;
-}
-[data-testid="stExpander"] summary {
-    color: #333333 !important;
-    font-weight: 700;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-/* ── Alertes contrastées ─────────────────────────────── */
-div.stSuccess {
-    background: linear-gradient(135deg, rgba(10,40,22,0.92) 0%, rgba(15,55,30,0.92) 100%) !important;
-    backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(46,125,82,0.3) !important;
-    border-left: 4px solid #2E7D52 !important;
-    border-radius: 2px !important;
-    color: #FFFFFF !important;
-}
-div.stWarning {
-    background: linear-gradient(135deg, rgba(40,28,0,0.92) 0%, rgba(55,38,0,0.92) 100%) !important;
-    backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(200,125,0,0.3) !important;
-    border-left: 4px solid #C87D00 !important;
-    border-radius: 2px !important;
-    color: #FFFFFF !important;
-}
-div.stError {
-    background: linear-gradient(135deg, rgba(40,8,6,0.92) 0%, rgba(60,12,10,0.92) 100%) !important;
-    backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(230,51,41,0.3) !important;
-    border-left: 4px solid #E63329 !important;
-    border-radius: 2px !important;
-    color: #FFFFFF !important;
-}
-
-/* ── Dataframe ───────────────────────────────────────── */
-[data-testid="stDataFrame"] {
-    border: 1px solid #E0E0E0;
-    border-top: 2px solid #1A1A1A;
-    border-radius: 0;
-    background: rgba(255,255,255,0.8);
-    backdrop-filter: blur(6px);
-}
-
-/* ── Séparateurs ─────────────────────────────────────── */
-hr { border-color: #E0E0E0 !important; margin: 2rem 0; }
-
-/* ── Titres h2 ───────────────────────────────────────── */
-h2 {
-    color: #000000 !important;
-    font-weight: 700 !important;
-    font-size: 13px !important;
-    text-transform: uppercase !important;
-    letter-spacing: 1.5px !important;
-}
-h2::before {
-    content: "\25CF";
-    color: #E63329;
-    margin-right: 10px;
-    font-size: 9px;
-    vertical-align: middle;
-}
-h3 { color: #333333 !important; font-weight: 600 !important; }
-
-/* ── Captions ────────────────────────────────────────── */
-[data-testid="stCaptionContainer"] p {
-    color: #888888 !important;
-    font-size: 13px !important;
-}
-a { color: #E63329 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-# ── En-tête ───────────────────────────────────────────────────────────────────
-st.markdown("""
-<div style="
-    background: linear-gradient(135deg, #1C1A17 0%, #252220 50%, #2A1A18 100%);
-    padding: 2.8rem 3rem 2.4rem 3rem;
-    margin-bottom: 2.5rem;
-    position: relative;
-    overflow: hidden;
-">
-    <div style="
-        position: absolute; top: -40px; right: -40px;
-        width: 280px; height: 280px; border-radius: 50%;
-        background: radial-gradient(circle, rgba(230,51,41,0.18) 0%, transparent 70%);
-        pointer-events: none;
-    "></div>
-    <div style="
-        position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
-        background: linear-gradient(90deg, #E63329 0%, rgba(230,51,41,0.2) 60%, transparent 100%);
-    "></div>
-    <div style="color: rgba(255,255,255,0.3); font-size: 11px; font-weight: 700;
-                letter-spacing: 3px; text-transform: uppercase; margin-bottom: 1rem;">
-        &#9679; &nbsp; Outil d'aide au recrutement &nbsp;&middot;&nbsp; Analyse offline
-    </div>
-    <div style="
-        color: #FFFFFF;
-        font-size: 2.6rem;
-        font-weight: 300;
-        font-family: 'Arial', 'Helvetica Neue', sans-serif;
-        text-transform: uppercase;
-        letter-spacing: 4px;
-        line-height: 1.1;
-    ">
-        Analyse CV
-        <span style="color: #E63329; font-weight: 700;">/</span>
-        Offre d'emploi
-    </div>
-</div>
-""", unsafe_allow_html=True)
+# ── En-tête TriCV ─────────────────────────────────────────────────────────────
+st.markdown(HEADER_HTML, unsafe_allow_html=True)
 
 
 # Supporte data/ OU assets/data selon ton arborescence
@@ -284,26 +66,25 @@ def load_embedding_model(model_path: str) -> SentenceTransformer:
     return SentenceTransformer(model_path)
 
 
-def parse_label(x):
-    if pd.isna(x):
-        return None
-    if isinstance(x, (int, float)):
-        return int(x)
-    s = str(x).strip().lower()
-    if s in {"1", "fit", "good fit", "yes"}:
-        return 1
-    if s in {"0", "no fit", "not fit", "bad fit", "no"}:
-        return 0
-    m = re.search(r"\b([01])\b", s)
-    return int(m.group(1)) if m else None
 
 
-def _skills_tags(skills: list, bg: str) -> str:
+def _skills_tags(skills: list, tone: str = "green") -> str:
+    """Tags de compétences — style aplat, palette TriCV."""
     if not skills:
-        return "<span style='color:rgba(255,255,255,0.35);font-style:italic'>Aucune</span>"
+        return (
+            "<span style='color:#8A8A86;font-style:italic;font-size:12.5px'>"
+            "Aucune</span>"
+        )
+
+    if tone == "green":
+        bg, fg, bd = "#EDF7F0", "#1A6E3C", "#CFE8D6"
+    else:  # red
+        bg, fg, bd = "#FCECEE", "#A30E25", "#F3CFD4"
+
     return " ".join(
-        f"<span style='background:{bg};color:#fff;padding:3px 11px;border-radius:20px;"
-        f"font-size:0.82em;margin:2px;display:inline-block;line-height:1.8'>{s}</span>"
+        f"<span style='background:{bg};color:{fg};border:1px solid {bd};"
+        f"padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;"
+        f"margin:3px 3px 3px 0;display:inline-block;line-height:1.6'>{s}</span>"
         for s in skills
     )
 
@@ -370,14 +151,14 @@ def render_result(result, hr_analysis: str = None, llm_error: str = None):
     with c1:
         st.markdown(f"**Compétences présentes** ({n_matched})")
         st.markdown(
-            _skills_tags(result.matched_skills, "#1a6e3c"),
+            _skills_tags(result.matched_skills, tone="green"),
             unsafe_allow_html=True,
         )
 
     with c2:
         st.markdown(f"**Compétences absentes** ({n_missing})")
         st.markdown(
-            _skills_tags(result.missing_skills, "#9b2222"),
+            _skills_tags(result.missing_skills, tone="red"),
             unsafe_allow_html=True,
         )
 
@@ -386,42 +167,60 @@ def render_result(result, hr_analysis: str = None, llm_error: str = None):
     # ── 3. Analyse RH ──────────────────────────────────────────────────────────
     st.subheader("Analyse RH")
 
-    # ── DEBUG TEMPORAIRE — retirer après confirmation ─────────────────────────
-    _dbg_key = os.environ.get("MISTRAL_API_KEY", "").strip()
-    _PLACEHOLDER = "your-mistral-api-key-here"
-    if not _dbg_key:
-        _key_status = "❌ absente"
-    elif _dbg_key == _PLACEHOLDER:
-        _key_status = f"❌ placeholder non remplacé ({len(_dbg_key)} chars)"
-    elif len(_dbg_key) < 32:
-        _key_status = f"❌ trop courte ({len(_dbg_key)} chars, min 32)"
-    else:
-        _key_status = f"✅ présente ({len(_dbg_key)} chars)"
-
-    if llm_error:
-        _analysis_status = f"❌ LLM a échoué — erreur : {llm_error}"
-    elif hr_analysis and "Analyse LLM indisponible" in hr_analysis:
-        _analysis_status = "⚠️ contenu = fallback statique (use_llm=False lors de l'analyse, ou analyse relancée sans LLM)"
-    elif hr_analysis:
-        _analysis_status = "✅ contenu LLM reçu"
-    else:
-        _analysis_status = "— aucune analyse"
-
-    with st.expander("🔍 Debug LLM (temporaire)", expanded=True):
-        st.write(f"**Clé API :** {_key_status}")
-        st.write(f"**Analyse :** {_analysis_status}")
-        if hr_analysis:
-            st.write("**Contenu hr_analysis (300 premiers chars) :**")
-            st.code(hr_analysis[:300], language=None)
-    # ── FIN DEBUG ──────────────────────────────────────────────────────────────
-
     if llm_error is not None:
         st.error(f"**L'analyse LLM a échoué.** Raison : {llm_error}")
     else:
         _render_llm_sections(hr_analysis or "*(Aucune analyse disponible.)*")
 
+    # ── Debug LLM — caché par défaut dans un expander discret ─────────────────
+    _dbg_provider = os.environ.get("LLM_PROVIDER", "mistral").strip().lower()
+    if _dbg_provider == "internal":
+        _dbg_token = os.environ.get("INTERNAL_LLM_TOKEN", "").strip()
+        _dbg_url   = os.environ.get("INTERNAL_LLM_URL", "").strip()
+        _key_status = (
+            f"✅ INTERNAL_LLM_TOKEN présent ({len(_dbg_token)} chars)"
+            if _dbg_token else "❌ INTERNAL_LLM_TOKEN absent"
+        )
+        _url_status = f"URL : {_dbg_url}" if _dbg_url else "❌ INTERNAL_LLM_URL absent"
+    else:
+        _dbg_key   = os.environ.get("MISTRAL_API_KEY", "").strip()
+        _PLACEHOLDER = "your-mistral-api-key-here"
+        if not _dbg_key:
+            _key_status = "❌ MISTRAL_API_KEY absente"
+        elif _dbg_key == _PLACEHOLDER:
+            _key_status = f"❌ MISTRAL_API_KEY = placeholder ({len(_dbg_key)} chars)"
+        elif len(_dbg_key) < 32:
+            _key_status = f"❌ MISTRAL_API_KEY trop courte ({len(_dbg_key)} chars, min 32)"
+        else:
+            _key_status = f"✅ MISTRAL_API_KEY présente ({len(_dbg_key)} chars)"
+        _url_status = "mistral-small-latest (public API)"
+
+    if llm_error:
+        _analysis_status = f"❌ erreur : {llm_error}"
+    elif hr_analysis and "Analyse LLM indisponible" in hr_analysis:
+        _analysis_status = "⚠️ fallback statique — cochez 'Générer une analyse RH' avant de lancer l'analyse"
+    elif hr_analysis:
+        _analysis_status = "✅ contenu LLM reçu"
+    else:
+        _analysis_status = "— aucune analyse (use_llm=False au moment de l'analyse)"
+
+    st.markdown('<div class="tricv-debug-expander">', unsafe_allow_html=True)
+    with st.expander("Debug LLM (diagnostic technique)", expanded=False):
+        st.write(f"**Provider :** `LLM_PROVIDER={_dbg_provider}`")
+        st.write(f"**Clé / token :** {_key_status}")
+        st.write(f"**Endpoint :** {_url_status}")
+        st.write(f"**Appels LLM (dernière analyse) :** {st.session_state.get('last_llm_call_count', '—')}")
+        st.write(f"**Analyse :** {_analysis_status}")
+        if hr_analysis:
+            st.write("**Contenu hr_analysis (300 premiers chars) :**")
+            st.code(hr_analysis[:300], language=None)
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 with st.sidebar:
+    # Wordmark TriCV
+    st.markdown(SIDEBAR_BRAND_HTML, unsafe_allow_html=True)
+
     st.header("Paramètres")
     skill_path = st.text_input(
         "Base de compétences générale",
@@ -446,27 +245,24 @@ with st.sidebar:
     )
 
     st.markdown("---")
+    st.subheader("Scoring")
     verdict_threshold = st.slider("Seuil 'cohérent' (%)", 0, 100, 60, 5)
 
     st.markdown("---")
-    st.subheader("Analyse RH (Mistral API)")
-    use_llm = st.checkbox("Générer une analyse RH (Mistral Small)", value=False)
-    _mistral_key = os.environ.get("MISTRAL_API_KEY", "").strip()
-    if use_llm:
-        if _mistral_key:
-            st.caption(f"Clé API : {'*' * 8}{_mistral_key[-4:]} · modèle : mistral-small-latest")
-        else:
-            st.error(
-                "**MISTRAL_API_KEY manquante.** "
-                "Ajoutez `MISTRAL_API_KEY=sk-...` dans le fichier `.env` "
-                "à la racine du projet, puis relancez l'application.",
-                icon="🔑",
-            )
+    _llm_provider = os.environ.get("LLM_PROVIDER", "mistral").strip().lower()
+    if _llm_provider == "internal":
+        _provider_label = "Chatbot interne MBDA"
+    else:
+        _provider_label = "Mistral API"
+    st.subheader("Analyse RH")
+    st.caption(f"LLM : {_provider_label}")
     # Ollama conservé pour rollback — réactiver si besoin
     ollama_model = "llama3.2:3b"   # non utilisé, gardé pour compatibilité des appels
 
-    st.markdown("---")
-    st.caption("Embeddings : offline. Analyse RH : Mistral API (cloud).")
+    st.caption(f"Embeddings : offline · LLM : {_provider_label}")
+
+    # Footer classification
+    st.markdown(SIDEBAR_FOOTER_HTML, unsafe_allow_html=True)
 
 
 try:
@@ -488,7 +284,7 @@ except Exception as e:
     st.stop()
 
 
-tab1, tab2, tab3 = st.tabs(["Compare documents", "Demo dataset", "Classement multi-candidats"])
+tab1, tab3 = st.tabs(["Compare documents", "Classement multi-candidats"])
 
 # ----------------------
 # TAB 1: Documents
@@ -511,8 +307,6 @@ with tab1:
         )
 
     # ── Extraction et prévisualisation de l'offre dès l'upload ───────────────
-    # Effectuée ici (hors du bloc "if run") pour afficher l'expander
-    # immédiatement et réutiliser le résultat sans double extraction.
     _job_text_tab1 = None
     _job_label_tab1 = "OFFRE D'EMPLOI"
 
@@ -554,6 +348,7 @@ with tab1:
                     key="profil_preview_tab1",
                 )
 
+    use_llm = st.checkbox("Générer une analyse RH", value=True, key="use_llm_tab1")
     run = st.button("Comparer", type="primary", use_container_width=True, key="run_pdf")
 
     if run:
@@ -566,6 +361,7 @@ with tab1:
             st.stop()
 
         with st.spinner("Analyse en cours..."):
+            reset_llm_counter()
             d = analyze_candidate(
                 cv_bytes=cv_pdf.getvalue(),
                 cv_filename=cv_pdf.name,
@@ -578,6 +374,7 @@ with tab1:
                 ollama_model=ollama_model,
                 job_text_label=_job_label_tab1,
             )
+            st.session_state["last_llm_call_count"] = get_llm_call_count()
 
         if d["cv_warning"]:
             st.warning(f"CV — {d['cv_warning']}")
@@ -594,64 +391,6 @@ with tab1:
             llm_error=d.get("llm_error"),
         )
 
-# ----------------------
-# TAB 2: Dataset demo
-# ----------------------
-with tab2:
-    st.info("Démo sans PDF: couples (resume, job_description) depuis le fichier XLSX dans data/.")
-
-    @st.cache_data
-    def load_demo_df():
-        p = DATA_DIR / "huggingface_resume_job_fit_RAW.xlsx"
-        df = pd.read_excel(p)
-        df.columns = [c.strip().lower() for c in df.columns]
-        df["_label"] = df["label"].apply(parse_label) if "label" in df.columns else None
-        return df
-
-    df = load_demo_df()
-
-    colA, colB, colC = st.columns([2, 2, 1])
-    with colA:
-        label_filter = st.selectbox("Filtre label", options=["all", "0", "1"], index=0)
-    with colB:
-        idx = st.number_input("Index exemple", min_value=0, max_value=len(df) - 1, value=0, step=1)
-    with colC:
-        random_pick = st.button("Random")
-
-    if label_filter != "all":
-        sub = df[df["_label"] == int(label_filter)]
-        if len(sub) == 0:
-            st.warning("Aucun exemple pour ce label.")
-            st.stop()
-        row = sub.sample(1).iloc[0] if random_pick else sub.iloc[int(idx) % len(sub)]
-    else:
-        row = df.sample(1).iloc[0] if random_pick else df.iloc[int(idx)]
-
-    label = row["_label"] if "_label" in row else None
-
-    cv_text = str(row.get("resume_text", ""))
-    job_text = str(row.get("job_description_text", ""))
-
-    run2 = st.button("Comparer (dataset)", type="primary", use_container_width=True, key="run_dataset")
-
-    if run2:
-        with st.spinner("Analyse en cours..."):
-            d = analyze_candidate(
-                cv_bytes=cv_text.encode("utf-8"),
-                cv_filename="candidate.txt",
-                job_text=job_text,
-                skill_ref=skill_ref,
-                emb_model=emb_model,
-                semantic_threshold=semantic_threshold,
-                breakpoint_percentile=breakpoint_percentile,
-                use_llm=use_llm,
-                ollama_model=ollama_model,
-            )
-        render_result(
-            d["_result"],
-            hr_analysis=d["llm_analysis"],
-            llm_error=d.get("llm_error"),
-        )
 
 # ----------------------
 # TAB 3: Multi-candidate ranking
@@ -711,76 +450,8 @@ with tab3:
                     key="profil_preview_tab3",
                 )
 
-    # ── 2. Import Gestmax (optionnel) ────────────────────────────────────────
-    st.markdown("#### 2. Import Gestmax *(optionnel)*")
-    st.info(
-        "**Gestmax** : exportez la liste des candidatures depuis "
-        "*Gestion > Candidatures > Exporter* (format CSV ou Excel). "
-        "L'export doit contenir au minimum une colonne nom/prénom. "
-        "Les colonnes date de candidature et statut sont exploitées automatiquement si présentes. "
-        "Les CVs uploadés ci-dessous seront rapprochés des candidats par correspondance de nom.",
-        icon="ℹ️",
-    )
-
-    gestmax_file = st.file_uploader(
-        "Export Gestmax (.csv ou .xlsx)",
-        type=["csv", "xlsx", "xls"],
-        key="gestmax_file",
-    )
-
-    # Parsing et preview Gestmax
-    if gestmax_file:
-        gx_result = parse_gestmax_export(gestmax_file.getvalue(), gestmax_file.name)
-
-        for w in gx_result.warnings:
-            st.warning(w)
-
-        if gx_result.candidates:
-            st.session_state["gestmax_candidates"] = gx_result.candidates
-
-            # Colonnes détectées
-            if gx_result.detected_columns:
-                detected_str = " · ".join(
-                    f"**{role}** → `{col}`"
-                    for role, col in gx_result.detected_columns.items()
-                )
-                st.caption(f"Colonnes détectées : {detected_str}")
-
-            # Aperçu du tableau Gestmax
-            preview_rows = []
-            for c in gx_result.candidates[:50]:
-                preview_rows.append({
-                    "Candidat (Gestmax)": c.candidate_name,
-                    "Date candidature": c.application_date or "—",
-                    "Statut": c.status or "—",
-                    "Offre / Poste": c.offer_ref or "—",
-                    "Fichier CV (export)": c.cv_filename_hint or "—",
-                })
-            df_preview = pd.DataFrame(preview_rows)
-            with st.expander(
-                f"Aperçu import Gestmax — {len(gx_result.candidates)} candidat(s)",
-                expanded=True,
-            ):
-                st.dataframe(df_preview, use_container_width=True, hide_index=True)
-                if len(gx_result.candidates) > 50:
-                    st.caption(f"… et {len(gx_result.candidates) - 50} autres candidats non affichés.")
-        else:
-            # Fichier uploadé mais rien extrait — ne pas garder d'ancien état
-            st.session_state.pop("gestmax_candidates", None)
-    elif not gestmax_file:
-        # Pas de fichier : on efface les candidats Gestmax précédents pour éviter
-        # qu'un ancien import soit réutilisé silencieusement après suppression du fichier.
-        st.session_state.pop("gestmax_candidates", None)
-
-    # ── 3. CVs des candidats ─────────────────────────────────────────────────
-    st.markdown("#### 3. CVs des candidats")
-
-    gestmax_candidates = st.session_state.get("gestmax_candidates", [])
-    if gestmax_candidates:
-        st.caption(
-            f"{len(gestmax_candidates)} candidat(s) importés depuis Gestmax. "
-            "Uploadez leurs CVs ci-dessous — le rapprochement se fait automatiquement par nom de fichier."
-        )
+    # ── 2. CVs des candidats ─────────────────────────────────────────────────
+    st.markdown("#### 2. CVs des candidats")
 
     cv_files = st.file_uploader(
         "CVs des candidats — sélectionner plusieurs fichiers",
@@ -789,25 +460,7 @@ with tab3:
         key="cvs_multi",
     )
 
-    # Aperçu du matching Gestmax ↔ fichiers uploadés
-    if cv_files and gestmax_candidates:
-        match_rows = []
-        for f in cv_files:
-            hit = match_cv_to_candidate(f.name, gestmax_candidates)
-            match_rows.append({
-                "Fichier uploadé": f.name,
-                "Candidat Gestmax associé": hit.candidate_name if hit else "⚠ Non trouvé",
-                "Date candidature": hit.application_date if hit else "—",
-            })
-        with st.expander("Vérifier le rapprochement Gestmax ↔ CVs uploadés", expanded=False):
-            st.dataframe(pd.DataFrame(match_rows), use_container_width=True, hide_index=True)
-            unmatched = sum(1 for r in match_rows if r["Candidat Gestmax associé"].startswith("⚠"))
-            if unmatched:
-                st.caption(
-                    f"{unmatched} fichier(s) non associé(s) — leurs noms seront utilisés tels quels. "
-                    "Renommez les CVs au format «Prénom Nom» pour améliorer la détection."
-                )
-
+    use_llm = st.checkbox("Générer une analyse RH", value=True, key="use_llm_tab3")
     run_multi = st.button(
         "Analyser tous les candidats",
         type="primary",
@@ -828,12 +481,10 @@ with tab3:
             st.error("Texte vide après extraction de l'offre. Vérifie que le document est lisible.")
             st.stop()
 
-        # Snapshot des candidats Gestmax pour cette analyse
-        gx_candidates_snap = st.session_state.get("gestmax_candidates", [])
-
         progress_bar = st.progress(0, text="Initialisation…")
         results_list = []
         errors = []
+        reset_llm_counter()
 
         for i, cv_file in enumerate(cv_files):
             progress_bar.progress(
@@ -856,20 +507,12 @@ with tab3:
                 if not d["cv_text"].strip():
                     errors.append(f"{cv_file.name} : texte vide après extraction, ignoré.")
                     continue
-
-                # Enrichissement avec les métadonnées Gestmax si disponibles
-                gx_match = match_cv_to_candidate(cv_file.name, gx_candidates_snap) if gx_candidates_snap else None
-                d["gestmax_name"] = gx_match.candidate_name if gx_match else None
-                d["gestmax_date"] = gx_match.application_date if gx_match else None
-                d["gestmax_status"] = gx_match.status if gx_match else None
-                d["gestmax_offer"] = gx_match.offer_ref if gx_match else None
-                d["gestmax_matched"] = gx_match is not None
-
                 results_list.append(d)
             except Exception as exc:
                 errors.append(f"{cv_file.name} : erreur d'analyse — {exc}")
 
         progress_bar.progress(1.0, text="Analyse terminée.")
+        st.session_state["last_llm_call_count"] = get_llm_call_count()
 
         for err in errors:
             st.warning(err)
@@ -883,8 +526,6 @@ with tab3:
     if st.session_state.get("multi_results"):
         ranked = st.session_state["multi_results"]
         job_text_multi = st.session_state.get("multi_job_text", "")
-        has_gestmax = any(d.get("gestmax_matched") for d in ranked)
-
         st.divider()
         st.subheader(f"Classement — {len(ranked)} candidat(s)")
 
@@ -899,22 +540,15 @@ with tab3:
             else:
                 verdict = "À risque"
 
-            # Nom affiché : priorité au nom Gestmax, fallback filename stem
-            display_name = d["gestmax_name"] if d.get("gestmax_name") else d["candidate_name"]
-
             row = {
                 "Rang": rank,
-                "Candidat": display_name,
+                "Candidat": d["candidate_name"],
                 "Adéquation compétences (%)": d.get("skill_score", d["skill_coverage"]),
                 "Proximité sémantique (%)": d.get("semantic_display_score", d["semantic_score"]),
                 "Compétences matchées": len(d["matched_skills"]),
                 "Compétences manquantes": len(d["missing_skills"]),
                 "Verdict": verdict,
             }
-            if has_gestmax:
-                row["Date candidature"] = d.get("gestmax_date") or "—"
-                row["Statut Gestmax"] = d.get("gestmax_status") or "—"
-
             table_rows.append(row)
 
         df_rank = pd.DataFrame(table_rows)
@@ -931,9 +565,6 @@ with tab3:
             ),
             "Verdict": st.column_config.TextColumn(width="medium"),
         }
-        if has_gestmax:
-            col_config["Date candidature"] = st.column_config.TextColumn(width="medium")
-            col_config["Statut Gestmax"] = st.column_config.TextColumn(width="medium")
 
         st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=col_config)
 
@@ -942,7 +573,7 @@ with tab3:
         for rank, d in enumerate(ranked, 1):
             entry = {
                 "rank": rank,
-                "candidate_name": d["gestmax_name"] if d.get("gestmax_name") else d["candidate_name"],
+                "candidate_name": d["candidate_name"],
                 "cv_filename": d["cv_filename"],
                 "global_score": d["global_score"],
                 "skill_score": d.get("skill_score", d["skill_coverage"]),
@@ -963,13 +594,6 @@ with tab3:
                 "llm_analysis": d["llm_analysis"],
                 "scores": d["scores"],
             }
-            if d.get("gestmax_matched"):
-                entry["gestmax"] = {
-                    "nom": d["gestmax_name"],
-                    "date_candidature": d["gestmax_date"],
-                    "statut": d["gestmax_status"],
-                    "offre": d["gestmax_offer"],
-                }
             export_all.append(entry)
 
         st.download_button(
@@ -989,26 +613,12 @@ with tab3:
             score = d["global_score"]
             skill_pct = d.get("skill_score", d["skill_coverage"])
             sem_pct = d.get("semantic_display_score", d["semantic_score"])
-            display_name = d["gestmax_name"] if d.get("gestmax_name") else d["candidate_name"]
             label_icon = "🟢" if score >= verdict_threshold else ("🟡" if score >= verdict_threshold * 0.75 else "🔴")
 
             with st.expander(
-                f"#{rank} — {display_name}  ·  compétences {skill_pct}% · sémantique {sem_pct}% {label_icon}",
+                f"#{rank} — {d['candidate_name']}  ·  compétences {skill_pct}% · sémantique {sem_pct}% {label_icon}",
                 expanded=(rank == 1),
             ):
-                # Bandeau métadonnées Gestmax si disponible
-                if d.get("gestmax_matched"):
-                    meta_parts = []
-                    if d["gestmax_date"]:
-                        meta_parts.append(f"Candidature : **{d['gestmax_date']}**")
-                    if d["gestmax_status"]:
-                        meta_parts.append(f"Statut : **{d['gestmax_status']}**")
-                    if d["gestmax_offer"]:
-                        meta_parts.append(f"Poste : **{d['gestmax_offer']}**")
-                    if meta_parts:
-                        st.caption("  ·  ".join(meta_parts))
-                    st.caption(f"Fichier CV : `{d['cv_filename']}`")
-
                 render_result(
                     d["_result"],
                     hr_analysis=d["llm_analysis"],
