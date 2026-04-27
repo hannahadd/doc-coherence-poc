@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Set, List
 
 
-_TOKEN_RE = re.compile(r"[a-zA-Z0-9\+\#\.\-\/]+")
+_TOKEN_RE = re.compile(r"[a-zA-Z0-9\+\#\.\-]+")
 _ALPHA_ONLY_RE = re.compile(r"^[a-z0-9]+$")
 
 # Compétences courtes connues : bypass du filtre min_chars.
@@ -14,7 +14,9 @@ _ALPHA_ONLY_RE = re.compile(r"^[a-z0-9]+$")
 # Contrepartie connue : "c" peut matcher "c'est" (le ' sépare), "r" peut matcher "R&D".
 # C'est un compromis acceptable vs. les rater complètement.
 _SHORT_SKILL_WHITELIST: Set[str] = {
-    "r", "c", "go",          # langages
+    # "r" et "c" retirés : génèrent des faux positifs massifs sur textes français
+    # (ex. "rédiger" → token "r", "c'est" → token "c")
+    "go",                    # langage
     "ai", "ml", "dl",        # domaines IA
     "bi", "etl",             # data
     "qa", "ui", "ux",        # métiers
@@ -30,7 +32,10 @@ def normalize(s: str) -> str:
 
 
 def tokenize(text: str) -> List[str]:
-    return _TOKEN_RE.findall((text or "").lower())
+    """Tokenise le texte. Les points internes sont conservés (node.js, .net)
+    mais les points de fin de token (ponctuation de fin de phrase) sont retirés."""
+    raw = _TOKEN_RE.findall((text or "").lower())
+    return [t.strip(".") for t in raw if t.strip(".")]
 
 
 def ngrams(tokens: List[str], n: int) -> Set[str]:

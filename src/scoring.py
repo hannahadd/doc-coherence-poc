@@ -40,7 +40,7 @@ def compute_scores(
     semantic_display_score = (semantic_score + tfidf_sim) / 2
 
     # ── Score global (usage interne : classement uniquement) ──────────────────
-    score = skill_score * 0.70 + semantic_display_score * 0.30
+    score = skill_score * 0.40 + semantic_display_score * 0.60
 
     return {
         "semantic_coverage": float(semantic_coverage),

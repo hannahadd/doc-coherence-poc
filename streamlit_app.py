@@ -162,59 +162,36 @@ def render_result(result, hr_analysis: str = None, llm_error: str = None):
             unsafe_allow_html=True,
         )
 
-    st.divider()
-
-    # ── 3. Analyse RH ──────────────────────────────────────────────────────────
-    st.subheader("Analyse RH")
-
-    if llm_error is not None:
-        st.error(f"**L'analyse LLM a échoué.** Raison : {llm_error}")
-    else:
-        _render_llm_sections(hr_analysis or "*(Aucune analyse disponible.)*")
+    if llm_error is not None or hr_analysis is not None:
+        st.divider()
+        st.subheader("Analyse RH")
+        if llm_error is not None:
+            st.error(f"**L'analyse LLM a échoué.** Raison : {llm_error}")
+        else:
+            _render_llm_sections(hr_analysis)
 
     # ── Debug LLM — caché par défaut dans un expander discret ─────────────────
-    _dbg_provider = os.environ.get("LLM_PROVIDER", "mistral").strip().lower()
-    if _dbg_provider == "internal":
-        _dbg_token = os.environ.get("INTERNAL_LLM_TOKEN", "").strip()
-        _dbg_url   = os.environ.get("INTERNAL_LLM_URL", "").strip()
-        _key_status = (
-            f"✅ INTERNAL_LLM_TOKEN présent ({len(_dbg_token)} chars)"
-            if _dbg_token else "❌ INTERNAL_LLM_TOKEN absent"
-        )
-        _url_status = f"URL : {_dbg_url}" if _dbg_url else "❌ INTERNAL_LLM_URL absent"
-    else:
-        _dbg_key   = os.environ.get("MISTRAL_API_KEY", "").strip()
-        _PLACEHOLDER = "your-mistral-api-key-here"
-        if not _dbg_key:
-            _key_status = "❌ MISTRAL_API_KEY absente"
-        elif _dbg_key == _PLACEHOLDER:
-            _key_status = f"❌ MISTRAL_API_KEY = placeholder ({len(_dbg_key)} chars)"
-        elif len(_dbg_key) < 32:
-            _key_status = f"❌ MISTRAL_API_KEY trop courte ({len(_dbg_key)} chars, min 32)"
-        else:
-            _key_status = f"✅ MISTRAL_API_KEY présente ({len(_dbg_key)} chars)"
-        _url_status = "mistral-small-latest (public API)"
+    _dbg_token = os.environ.get("LLM_TOKEN", "").strip()
+    _dbg_url   = os.environ.get("LLM_URL", "https://votre-endpoint-interne/api/chat/completions").strip()
+    _dbg_model = os.environ.get("LLM_MODEL", "Mistral-Small-3.1").strip()
+    _token_status = f"✅ présent ({len(_dbg_token)} chars)" if _dbg_token else "❌ absent — analyse RH désactivée"
 
     if llm_error:
         _analysis_status = f"❌ erreur : {llm_error}"
     elif hr_analysis and "Analyse LLM indisponible" in hr_analysis:
-        _analysis_status = "⚠️ fallback statique — cochez 'Générer une analyse RH' avant de lancer l'analyse"
+        _analysis_status = "⚠️ fallback statique — cochez 'Générer une analyse RH' avant de lancer"
     elif hr_analysis:
         _analysis_status = "✅ contenu LLM reçu"
     else:
-        _analysis_status = "— aucune analyse (use_llm=False au moment de l'analyse)"
+        _analysis_status = "— aucune analyse"
 
-    st.markdown('<div class="tricv-debug-expander">', unsafe_allow_html=True)
-    with st.expander("Debug LLM (diagnostic technique)", expanded=False):
-        st.write(f"**Provider :** `LLM_PROVIDER={_dbg_provider}`")
-        st.write(f"**Clé / token :** {_key_status}")
-        st.write(f"**Endpoint :** {_url_status}")
-        st.write(f"**Appels LLM (dernière analyse) :** {st.session_state.get('last_llm_call_count', '—')}")
-        st.write(f"**Analyse :** {_analysis_status}")
+    with st.container():
+        st.caption(
+            f"🔍 Debug — token: {_token_status} · analyse: {_analysis_status} · "
+            f"appels: {st.session_state.get('last_llm_call_count', '—')}"
+        )
         if hr_analysis:
-            st.write("**Contenu hr_analysis (300 premiers chars) :**")
             st.code(hr_analysis[:300], language=None)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 with st.sidebar:
@@ -231,6 +208,9 @@ with st.sidebar:
         value=str(DATA_DIR / "skills_company.json"),
         help="Fichier JSON avec les compétences propres à votre entreprise. Laisser vide pour ne pas l'utiliser.",
     )
+    if st.button("🔄 Recharger le référentiel", use_container_width=True):
+        load_skill_ref.clear()
+        st.rerun()
 
     st.markdown("---")
     st.subheader("Sémantique (embeddings)")
@@ -249,17 +229,15 @@ with st.sidebar:
     verdict_threshold = st.slider("Seuil 'cohérent' (%)", 0, 100, 60, 5)
 
     st.markdown("---")
-    _llm_provider = os.environ.get("LLM_PROVIDER", "mistral").strip().lower()
-    if _llm_provider == "internal":
-        _provider_label = "Chatbot interne MBDA"
-    else:
-        _provider_label = "Mistral API"
     st.subheader("Analyse RH")
-    st.caption(f"LLM : {_provider_label}")
-    # Ollama conservé pour rollback — réactiver si besoin
+    _sidebar_token = os.environ.get("LLM_TOKEN", "").strip()
+    if _sidebar_token:
+        st.caption("✅ Analyse RH activée")
+    else:
+        st.caption("⚠️ LLM_TOKEN manquant — analyse RH désactivée")
     ollama_model = "llama3.2:3b"   # non utilisé, gardé pour compatibilité des appels
 
-    st.caption(f"Embeddings : offline · LLM : {_provider_label}")
+    st.caption("Embeddings : offline · LLM : chatbot interne")
 
     # Footer classification
     st.markdown(SIDEBAR_FOOTER_HTML, unsafe_allow_html=True)

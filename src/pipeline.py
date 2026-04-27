@@ -52,80 +52,57 @@ def get_llm_call_count() -> int:
     return _llm_call_count
 
 
+_DEFAULT_LLM_URL   = "https://votre-endpoint-interne/api/chat/completions"
+_DEFAULT_LLM_MODEL = "Mistral-Small-3.1"
+
+
 def call_llm(prompt: str) -> str:
     """
-    Appelle le fournisseur LLM configuré via LLM_PROVIDER.
+    Appelle le chatbot LLM configuré via .env.
 
-    Returns:
-        Texte généré.
+    Variables .env :
+        LLM_TOKEN  — (obligatoire) bearer token fourni par votre entreprise
+        LLM_URL    — endpoint OpenAI-compatible  (défaut : chatbot interne)
+        LLM_MODEL  — nom du modèle               (défaut : Mistral-Small-3.1)
+
     Raises:
-        ValueError  : configuration manquante ou invalide.
-        Exception   : toute erreur réseau / API (propagée telle quelle).
+        ValueError  : LLM_TOKEN absent
+        Exception   : toute erreur réseau / API (propagée telle quelle)
     """
+    load_dotenv(override=True)  # relit .env à chaque appel — pas besoin de redémarrer l'app
+
     global _llm_call_count
     _llm_call_count += 1
-    print(f"[LLM CALL #{_llm_call_count}] prompt length: {len(prompt)} chars", flush=True)
 
-    provider = os.getenv("LLM_PROVIDER", "mistral").strip().lower()
+    token = os.getenv("LLM_TOKEN", "").strip()
+    url   = os.getenv("LLM_URL",   _DEFAULT_LLM_URL).strip()
+    model = os.getenv("LLM_MODEL", _DEFAULT_LLM_MODEL).strip()
 
-    if provider == "internal":
-        url   = os.getenv("INTERNAL_LLM_URL", "").strip()
-        token = os.getenv("INTERNAL_LLM_TOKEN", "").strip()
-        model = os.getenv("INTERNAL_LLM_MODEL", "Mistral-Small-3.1").strip()
+    print(f"[LLM CALL #{_llm_call_count}] model={model} prompt={len(prompt)}chars", flush=True)
 
-        if not url or not token:
-            raise ValueError(
-                "INTERNAL_LLM_URL ou INTERNAL_LLM_TOKEN manquant dans .env — "
-                "renseignez ces deux variables pour utiliser le chatbot interne MBDA."
-            )
-
-        response = requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-            },
-            timeout=60,
-            verify=False,
+    if not token:
+        raise ValueError(
+            "LLM_TOKEN manquant dans .env — "
+            "ajoutez votre token d'entreprise pour activer l'analyse RH."
         )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
 
-    else:  # mistral public API
-        _PLACEHOLDER = "your-mistral-api-key-here"
-        api_key = os.environ.get("MISTRAL_API_KEY", "").strip()
-
-        if not api_key:
-            raise ValueError(
-                "MISTRAL_API_KEY manquante — "
-                "ajoutez MISTRAL_API_KEY=sk-... dans le fichier .env et relancez l'application."
-            )
-        if api_key == _PLACEHOLDER:
-            raise ValueError(
-                f"MISTRAL_API_KEY contient la valeur placeholder du template (\"{_PLACEHOLDER}\"). "
-                "Remplacez-la par votre vraie clé sur https://console.mistral.ai/api-keys"
-            )
-        if len(api_key) < 32:
-            raise ValueError(
-                f"MISTRAL_API_KEY semble invalide : longueur {len(api_key)} caractères "
-                f"(valeur actuelle : \"{api_key[:6]}…\"). "
-                "Une clé Mistral valide fait au moins 32 caractères."
-            )
-
-        from mistralai import Mistral
-        client = Mistral(api_key=api_key)
-        response = client.chat.complete(
-            model=MISTRAL_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-        )
-        content = response.choices[0].message.content
-        return content.strip() if content else ""
+    response = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 1500,
+        },
+        timeout=60,
+        verify=False,
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
 
 # ── LLM local (Ollama) — conservé pour rollback ───────────────────────────────
@@ -149,63 +126,6 @@ def call_llm(prompt: str) -> str:
 
 
 # ── LLM Mistral API ───────────────────────────────────────────────────────────
-
-MISTRAL_MODEL = "mistral-small-latest"
-
-
-def run_mistral(prompt: str, temperature: float = 0.3) -> tuple[Optional[str], Optional[str]]:
-    """
-    Appelle l'API Mistral (api.mistral.ai) avec le modèle mistral-small-latest.
-
-    Returns:
-        (output, error) — l'un des deux est None.
-        - output : texte généré si succès
-        - error  : message d'erreur lisible si échec
-    """
-    import traceback
-
-    api_key = os.environ.get("MISTRAL_API_KEY", "").strip()
-
-    # ── DEBUG (retirer après confirmation) ────────────────────────────────────
-    print(f"[Mistral DEBUG] api_key présente: {bool(api_key)}, longueur: {len(api_key)}", flush=True)
-    print(f"[Mistral DEBUG] prompt (500 premiers chars):\n{prompt[:500]}\n---", flush=True)
-    # ── FIN DEBUG ──────────────────────────────────────────────────────────────
-
-    _PLACEHOLDER = "your-mistral-api-key-here"
-
-    if not api_key:
-        return None, (
-            "MISTRAL_API_KEY manquante — "
-            "ajoutez MISTRAL_API_KEY=sk-... dans le fichier .env et relancez l'application."
-        )
-    if api_key == _PLACEHOLDER:
-        return None, (
-            "MISTRAL_API_KEY contient la valeur placeholder du template "
-            f"(\"{_PLACEHOLDER}\"). "
-            "Remplacez-la par votre vraie clé sur https://console.mistral.ai/api-keys"
-        )
-    if len(api_key) < 32:
-        return None, (
-            f"MISTRAL_API_KEY semble invalide : longueur {len(api_key)} caractères "
-            f"(valeur actuelle : \"{api_key[:6]}…\"). "
-            "Une clé Mistral valide fait au moins 32 caractères."
-        )
-
-    try:
-        from mistralai import Mistral
-        client = Mistral(api_key=api_key)
-        response = client.chat.complete(
-            model=MISTRAL_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-        )
-        content = response.choices[0].message.content
-        return (content.strip() if content else None), None
-    except ImportError:
-        return None, "Package 'mistralai' non installé. Lancez : pip install mistralai"
-    except Exception as exc:
-        traceback.print_exc()
-        return None, f"{type(exc).__name__}: {exc}"
 
 
 # ── Analyse RH sans LLM (fallback) ───────────────────────────────────────────
@@ -408,11 +328,7 @@ def analyze_candidate(
             semantic_display_pct=round(result.scores["semantic_display_score"] * 100, 1),
         )
     else:
-        llm_analysis = fallback_analysis(
-            missing_skills=result.missing_skills,
-            gaps_snippets=semantic_gaps_snippets,
-            score_pct=score_pct,
-        )
+        llm_analysis = None
         llm_error = None
 
     return {

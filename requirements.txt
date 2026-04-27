@@ -1,16 +1,19 @@
+# Core
 streamlit==1.41.1
 pandas==2.2.3
-openpyxl==3.1.5
 scikit-learn==1.5.2
 pypdf==5.1.0
-numpy==2.0.2
-sentence-transformers==3.0.1
-faiss-cpu==1.8.0.post1
-torch==2.3.1
-# multimodal
-Pillow>=10.0.0
-pytesseract>=0.3.10
-python-docx>=1.1.0
+numpy==2.4.2
+
+# ML / embeddings
+torch==2.10.0
+sentence-transformers==5.2.2
+faiss-cpu==1.13.2
+
+# Multimodal
+pillow==11.3.0
+pytesseract==0.3.13
+python-docx==1.2.0
+
 # LLM
-mistralai>=1.0.0
-python-dotenv>=1.0.0
+python-dotenv==1.2.2

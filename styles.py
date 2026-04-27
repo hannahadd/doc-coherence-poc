@@ -154,30 +154,30 @@ html, body, [class*="css"] {
 .tricv-topbar {
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 44px;
-    background: rgba(10,10,10,0.92);
+    height: 64px;
+    background: rgba(10,10,10,0.95);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(200,16,46,0.25);
     display: flex;
     align-items: center;
-    padding: 0 1.2rem;
+    padding: 0 2rem;
     z-index: 999990;
 }
 .tricv-topbar-brand {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 12px;
 }
 .tricv-topbar-bar {
-    width: 2px; height: 16px; background: #C8102E; display: inline-block;
+    width: 3px; height: 24px; background: #C8102E; display: inline-block; border-radius: 2px;
 }
 .tricv-topbar-word {
     color: #FFFFFF;
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 14px;
+    font-size: 20px;
     font-weight: 800;
-    letter-spacing: -0.2px;
+    letter-spacing: -0.5px;
     line-height: 1;
 }
 .tricv-topbar-word .accent { color: #C8102E; }
@@ -186,19 +186,18 @@ html, body, [class*="css"] {
 
 /* Décaler le contenu + la sidebar pour ne pas passer sous la topbar */
 .stApp > header { display: none !important; }
-.main .block-container { padding-top: 3rem !important; }
-[data-testid="stSidebar"] > div:first-child { padding-top: 3rem !important; }
+.main .block-container { padding-top: 4.5rem !important; }
+[data-testid="stSidebar"] > div:first-child { padding-top: 4.5rem !important; }
 
-/* ── En-tête principal : bandeau full-width, noir éditorial ───────────────── */
+/* ── En-tête principal : bandeau rectangle flottant, délimité rouge ────────── */
 .tricv-header {
     position: relative;
-    /* Casse le conteneur Streamlit pour aller d'un bord à l'autre */
-    width: 100vw;
-    margin-left: calc(50% - 50vw);
-    margin-right: calc(50% - 50vw);
-    margin-top: -1.2rem;
-    margin-bottom: 2.2rem;
-    padding: 3.2rem clamp(1.5rem, 4vw, 4rem) 5rem clamp(1.5rem, 4vw, 4rem);
+    width: 98%;
+    max-width: 2200px;
+    margin: 0.4rem auto 2.5rem auto;
+    border-radius: 12px;
+    border: 1px solid rgba(200,16,46,0.5);
+    padding: clamp(1.2rem, 2vw, 2rem) clamp(2rem, 5vw, 6rem) clamp(1.5rem, 2.5vw, 2.5rem);
     background:
         radial-gradient(ellipse 55% 80% at 90% 10%, rgba(200,16,46,0.22) 0%, transparent 55%),
         radial-gradient(ellipse 55% 70% at 5% 100%, rgba(200,16,46,0.08) 0%, transparent 60%),
@@ -238,26 +237,23 @@ html, body, [class*="css"] {
     margin: 0 auto;
     padding-left: 0.5rem;
 }
-/* Fondu doux en bas : transition progressive vers le beige */
+/* Fondu bas resserré — le bandeau reste un rectangle délimité */
 .tricv-header-glow {
     position: absolute;
     left: 0; right: 0; bottom: 0;
-    height: 200px;
+    height: 50px;
     background: linear-gradient(to bottom,
         transparent 0%,
-        rgba(90,77,66,0.15) 20%,
-        rgba(150,135,120,0.3) 45%,
-        rgba(210,198,184,0.6) 70%,
-        rgba(240,234,226,0.9) 88%,
+        rgba(210,198,184,0.5) 60%,
         #F5F3F0 100%);
     pointer-events: none;
     z-index: 2;
 }
-/* Accent rouge subtil dans le fondu */
+/* Accent rouge subtil juste au-dessus du fondu */
 .tricv-header-glow::after {
     content: "";
     position: absolute;
-    left: 0; right: 0; bottom: 130px;
+    left: 0; right: 0; bottom: 60px;
     height: 1px;
     background: linear-gradient(90deg,
         transparent 0%,
@@ -271,16 +267,16 @@ html, body, [class*="css"] {
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 12px 6px 10px;
+    padding: clamp(5px,0.6vw,8px) clamp(10px,1.2vw,16px) clamp(5px,0.6vw,8px) clamp(8px,1vw,13px);
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 999px;
     color: rgba(255,255,255,0.75) !important;
-    font-size: 10.5px;
+    font-size: clamp(9px, 0.85vw, 12px);
     font-weight: 700;
     letter-spacing: 2.2px;
     text-transform: uppercase;
-    margin-bottom: 1.4rem;
+    margin-bottom: clamp(0.4rem, 0.8vw, 0.8rem);
     backdrop-filter: blur(8px);
 }
 .tricv-header-kicker::before {
@@ -298,13 +294,37 @@ html, body, [class*="css"] {
 }
 /* Forcer le blanc — surcharge les styles globaux h1/h2/p de .main */
 .tricv-header, .tricv-header * { color: #FFFFFF; }
+/* Logo TriCV intégré dans le bandeau */
+.tricv-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: clamp(0.6rem, 1.2vw, 1.2rem);
+}
+.tricv-header-brand-bar {
+    width: 3px;
+    height: clamp(18px, 2vw, 28px);
+    background: #C8102E;
+    flex-shrink: 0;
+    border-radius: 2px;
+}
+.tricv-header-brand-word {
+    color: #FFFFFF;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: clamp(1rem, 1.8vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1;
+}
+.tricv-header-brand-word .accent { color: #C8102E; }
+
 h1.tricv-header-title,
 .main .tricv-header h1.tricv-header-title,
 .tricv-header h1.tricv-header-title {
     color: #FFFFFF !important;
-    font-size: 2.6rem !important;
+    font-size: clamp(1.3rem, 2.2vw, 2.6rem) !important;
     font-weight: 300 !important;
-    letter-spacing: -1.2px !important;
+    letter-spacing: -1.5px !important;
     line-height: 1.05 !important;
     margin: 0 !important;
     text-shadow: 0 2px 30px rgba(0,0,0,0.4);
@@ -323,11 +343,11 @@ h1.tricv-header-title::before,
 }
 .tricv-header-sub {
     color: rgba(255,255,255,0.65) !important;
-    font-size: 13.5px;
-    margin-top: 0.85rem;
+    font-size: clamp(11px, 0.9vw, 13px);
+    margin-top: clamp(0.3rem, 0.6vw, 0.6rem);
     letter-spacing: 0.1px;
-    max-width: 640px;
-    line-height: 1.5;
+    max-width: min(640px, 60vw);
+    line-height: 1.55;
 }
 
 /* ── Métriques : cartes blanches, bordure fine, accent rouge ──────────────── */
@@ -648,6 +668,10 @@ div.stInfo * { color: #2A2A2A !important; }
 HEADER_HTML = """
 <div class="tricv-header">
     <div class="tricv-header-inner">
+        <div class="tricv-header-brand">
+            <div class="tricv-header-brand-bar"></div>
+            <span class="tricv-header-brand-word">Tri<span class="accent">CV</span></span>
+        </div>
         <div class="tricv-header-kicker">Outil d'aide au recrutement · Analyse offline</div>
         <h1 class="tricv-header-title">
             Analyse <span class="strong">CV</span><span class="sep">/</span><span class="strong">Offre d'emploi</span>
