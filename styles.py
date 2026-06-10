@@ -3,25 +3,6 @@ TriCV — feuille de style Streamlit
 Charte : aéro-défense, aplats, off-white / noir / rouge.
 """
 
-# Palette — à importer depuis app.py si besoin
-COLORS = {
-    "bg":          "#F5F3F0",   # off-white chaud
-    "surface":     "#FFFFFF",
-    "ink":         "#0A0A0A",   # noir profond
-    "ink_2":       "#2A2A2A",
-    "muted":       "#6A6A66",
-    "muted_2":     "#8A8A86",
-    "border":      "#EAE7E1",
-    "border_soft": "#F2EFE9",
-    "accent":      "#C8102E",   # rouge MBDA-like
-    "accent_dark": "#A30E25",
-    "success":     "#1A6E3C",
-    "success_bg":  "#EDF7F0",
-    "warn":        "#A85A0B",
-    "warn_bg":     "#FDF1E4",
-    "error_bg":    "#FCECEE",
-}
-
 
 CSS = """
 <style>
@@ -93,8 +74,8 @@ html, body, [class*="css"] {
 }
 [data-testid="stSidebar"] input[type="text"]:focus,
 [data-testid="stSidebar"] input[type="number"]:focus {
-    border-color: #C8102E !important;
-    box-shadow: 0 0 0 1px #C8102E !important;
+    border-color: rgba(255,255,255,0.4) !important;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.2) !important;
 }
 
 /* Sidebar : sliders */
@@ -102,9 +83,9 @@ html, body, [class*="css"] {
     background: rgba(255,255,255,0.15) !important;
 }
 [data-testid="stSidebar"] [data-baseweb="slider"] [role="slider"] {
-    background: #C8102E !important;
-    border: 2px solid #FFFFFF !important;
-    box-shadow: 0 0 0 2px rgba(200,16,46,0.25) !important;
+    background: #FFFFFF !important;
+    border: 2px solid rgba(255,255,255,0.6) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.35) !important;
 }
 
 /* Sidebar : captions plus lisibles */
@@ -185,7 +166,24 @@ html, body, [class*="css"] {
 .stApp { overflow-x: hidden; }
 
 /* Décaler le contenu + la sidebar pour ne pas passer sous la topbar */
-.stApp > header { display: none !important; }
+/* On rend le header Streamlit transparent sans le supprimer (sinon le toggle sidebar disparaît) */
+.stApp > header {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+[data-testid="stHeader"] {
+    visibility: hidden !important;
+    pointer-events: none !important;
+    background: transparent !important;
+}
+/* Bouton de réouverture de la sidebar — toujours accessible */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 9999999 !important;
+}
 .main .block-container { padding-top: 4.5rem !important; }
 [data-testid="stSidebar"] > div:first-child { padding-top: 4.5rem !important; }
 
@@ -350,11 +348,11 @@ h1.tricv-header-title::before,
     line-height: 1.55;
 }
 
-/* ── Métriques : cartes blanches, bordure fine, accent rouge ──────────────── */
+/* ── Métriques : cartes blanches, bordure fine ────────────────────────────── */
 [data-testid="metric-container"] {
     background: #FFFFFF;
     border: 1px solid #EAE7E1;
-    border-top: 2px solid #C8102E;
+    border-top: 2px solid #BDB8B0;
     border-radius: 8px;
     padding: 1.3rem 1.5rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
@@ -381,18 +379,25 @@ h1.tricv-header-title::before,
 
 /* Progress bar dans le contenu principal */
 .main [data-testid="stProgress"] > div > div > div > div {
-    background: #C8102E !important;
+    background: #1B4F8A !important;
 }
 .main [data-testid="stProgress"] > div > div > div {
     background: #EAE7E1 !important;
     height: 6px !important;
     border-radius: 999px !important;
 }
+/* ProgressColumn dans les tableaux dataframe */
+[data-testid="stDataFrame"] [role="progressbar"] > div,
+[data-testid="stDataFrame"] .stProgress div[style*="background"],
+.dvn-scroller [role="progressbar"] > div,
+[data-testid="column"] [data-testid="stProgress"] > div > div > div > div {
+    background: #1B4F8A !important;
+}
 
-/* ── Boutons : rouge plat, pas de dégradé ─────────────────────────────────── */
+/* ── Boutons : anthracite plat, pas de dégradé ────────────────────────────── */
 .stButton > button,
 .stDownloadButton > button {
-    background: #C8102E !important;
+    background: #2A2A2A !important;
     color: #FFFFFF !important;
     border: none !important;
     border-radius: 6px !important;
@@ -407,12 +412,12 @@ h1.tricv-header-title::before,
 }
 .stButton > button:hover,
 .stDownloadButton > button:hover {
-    background: #A30E25 !important;
+    background: #0A0A0A !important;
     transform: translateY(-1px);
 }
 .stButton > button:focus,
 .stDownloadButton > button:focus {
-    box-shadow: 0 0 0 3px rgba(200,16,46,0.25) !important;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.18) !important;
 }
 
 /* Boutons 'secondary' (type='secondary') : noir outline */
@@ -450,7 +455,7 @@ h1.tricv-header-title::before,
 .stTabs [aria-selected="true"] {
     background: transparent !important;
     color: #0A0A0A !important;
-    border-bottom: 2px solid #C8102E !important;
+    border-bottom: 2px solid #0A0A0A !important;
     margin-bottom: -1px;
 }
 
@@ -551,8 +556,8 @@ div.stInfo * { color: #2A2A2A !important; }
 .main input[type="text"]:focus,
 .main input[type="number"]:focus,
 .main textarea:focus {
-    border-color: #C8102E !important;
-    box-shadow: 0 0 0 3px rgba(200,16,46,0.12) !important;
+    border-color: #2A2A2A !important;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.08) !important;
 }
 
 [data-testid="stFileUploader"] section {
@@ -563,8 +568,8 @@ div.stInfo * { color: #2A2A2A !important; }
     transition: all 0.15s;
 }
 [data-testid="stFileUploader"] section:hover {
-    border-color: #C8102E !important;
-    background: #FEFCFC !important;
+    border-color: #2A2A2A !important;
+    background: #F9F7F4 !important;
 }
 [data-testid="stFileUploader"] section small,
 [data-testid="stFileUploader"] section span {
@@ -587,8 +592,8 @@ div.stInfo * { color: #2A2A2A !important; }
     font-weight: 500;
 }
 .main [data-testid="stCheckbox"] [data-baseweb="checkbox"] [role="checkbox"][aria-checked="true"] {
-    background: #C8102E !important;
-    border-color: #C8102E !important;
+    background: #2A2A2A !important;
+    border-color: #2A2A2A !important;
 }
 
 /* ── Séparateurs ──────────────────────────────────────────────────────────── */
@@ -677,7 +682,7 @@ HEADER_HTML = """
             Analyse <span class="strong">CV</span><span class="sep">/</span><span class="strong">Offre d'emploi</span>
         </h1>
         <div class="tricv-header-sub">
-            Extraction sémantique, scoring de compétences et synthèse RH générée par LLM — tout en restant dans votre périmètre offline.
+            Extraction sémantique, scoring de compétences et synthèse RH générée par LLM.
         </div>
     </div>
     <div class="tricv-header-glow"></div>
@@ -706,8 +711,3 @@ SIDEBAR_BRAND_HTML = """
 """
 
 
-SIDEBAR_FOOTER_HTML = """
-<div class="tricv-classification">
-    ● Internal · Classification C2
-</div>
-"""

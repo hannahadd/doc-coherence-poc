@@ -8,7 +8,7 @@
 #                         qui proxifie Docker Hub, à demander à
 #                         ton collègue ou à l'IT)
 # ─────────────────────────────────────────────────────────────
-FROM HARBOR_REGISTRY/HARBOR_PROJECT/python:3.11-slim
+FROM HARBOR_REGISTRY/HARBOR_PROJECT/python:3.13-slim
 
 # ── Métadonnées ──────────────────────────────────────────────
 LABEL maintainer="ton.email@entreprise.fr" \

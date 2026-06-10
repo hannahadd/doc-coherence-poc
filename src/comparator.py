@@ -28,8 +28,12 @@ def compare_texts(
     cv_skills = skill_ref.extract(cv_text)
     job_skills = skill_ref.extract(job_text)
 
-    matched = sorted(list(cv_skills & job_skills))
-    missing = sorted(list(job_skills - cv_skills))
+    matched_canons = cv_skills & job_skills
+    missing_canons = job_skills - cv_skills
+
+    # Surface forms : afficher le terme tel qu'il apparaît dans l'offre (source de référence)
+    matched = sorted([skill_ref.surface_form(job_text, c) for c in matched_canons])
+    missing = sorted([skill_ref.surface_form(job_text, c) for c in missing_canons])
 
     # 2) Sémantique (chunking sémantique + embeddings + FAISS)
     sem = semantic_compare(

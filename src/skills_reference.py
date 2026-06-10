@@ -119,6 +119,18 @@ class SkillReference:
 
         return SkillReference(canon2variants=merged, max_len=max_len)
 
+    def surface_form(self, text: str, canon: str) -> str:
+        """Retourne la forme exacte d'une compétence telle qu'elle apparaît dans le texte.
+        Essaie les variants du plus long au plus court ; retombe sur le canon en dernier recours."""
+        variants = self.canon2variants.get(canon, {canon})
+        for v in sorted(variants, key=len, reverse=True):
+            if not _is_matchable(v):
+                continue
+            m = re.search(re.escape(v), text, re.IGNORECASE)
+            if m:
+                return m.group(0)
+        return canon
+
     def extract(self, text: str) -> Set[str]:
         tokens = tokenize(text)
 

@@ -20,11 +20,11 @@ from sentence_transformers import SentenceTransformer
 
 from src.doc_reader import extract_from_bytes
 from src.skills_reference import SkillReference
-from src.pipeline import analyze_candidate, reset_llm_counter, get_llm_call_count
+from src.pipeline import analyze_candidate
 from src.job_offer_parser import extract_profil_section
 
 # ── Charte TriCV ──────────────────────────────────────────────────────────────
-from styles import CSS, HEADER_HTML, TOPBAR_HTML, SIDEBAR_BRAND_HTML, SIDEBAR_FOOTER_HTML
+from styles import CSS, HEADER_HTML, TOPBAR_HTML, SIDEBAR_BRAND_HTML
 
 
 # Force offline pour HF/Transformers (si le modèle est local, aucun souci)
@@ -66,6 +66,31 @@ def load_embedding_model(model_path: str) -> SentenceTransformer:
     return SentenceTransformer(model_path)
 
 
+
+
+def _render_document_preview(name: str, data: bytes) -> None:
+    """Affiche le document : PDF (pages rendues en image), image, ou texte extrait."""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+
+    if ext == "pdf":
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=data, filetype="pdf")
+        for i, page in enumerate(doc):
+            # Zoom 2.0 → 144 dpi : lisible et net à toutes les largeurs de conteneur
+            pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+            st.image(pix.tobytes("png"), use_container_width=True,
+                     caption=f"Page {i + 1} / {len(doc)}")
+    elif ext in {"jpg", "jpeg", "png", "tiff", "tif", "bmp", "webp"}:
+        st.image(data, use_container_width=True)
+    else:
+        ex = extract_from_bytes(data, name)
+        st.text_area(
+            "Contenu extrait",
+            value=ex.text,
+            height=700,
+            disabled=True,
+            label_visibility="collapsed",
+        )
 
 
 def _skills_tags(skills: list, tone: str = "green") -> str:
@@ -162,61 +187,27 @@ def render_result(result, hr_analysis: str = None, llm_error: str = None):
             unsafe_allow_html=True,
         )
 
-    if llm_error is not None or hr_analysis is not None:
+    if llm_error is not None:
         st.divider()
         st.subheader("Analyse RH")
-        if llm_error is not None:
-            st.error(f"**L'analyse LLM a échoué.** Raison : {llm_error}")
-        else:
-            _render_llm_sections(hr_analysis)
+        st.warning("Analyse RH indisponible. Vérifiez que le token LLM est bien configuré.")
+    elif hr_analysis is not None:
+        st.divider()
+        st.subheader("Analyse RH")
+        _render_llm_sections(hr_analysis)
 
-    # ── Debug LLM — caché par défaut dans un expander discret ─────────────────
-    _dbg_token = os.environ.get("LLM_TOKEN", "").strip()
-    _dbg_url   = os.environ.get("LLM_URL", "https://votre-endpoint-interne/api/chat/completions").strip()
-    _dbg_model = os.environ.get("LLM_MODEL", "Mistral-Small-3.1").strip()
-    _token_status = f"✅ présent ({len(_dbg_token)} chars)" if _dbg_token else "❌ absent — analyse RH désactivée"
 
-    if llm_error:
-        _analysis_status = f"❌ erreur : {llm_error}"
-    elif hr_analysis and "Analyse LLM indisponible" in hr_analysis:
-        _analysis_status = "⚠️ fallback statique — cochez 'Générer une analyse RH' avant de lancer"
-    elif hr_analysis:
-        _analysis_status = "✅ contenu LLM reçu"
-    else:
-        _analysis_status = "— aucune analyse"
-
-    with st.container():
-        st.caption(
-            f"🔍 Debug — token: {_token_status} · analyse: {_analysis_status} · "
-            f"appels: {st.session_state.get('last_llm_call_count', '—')}"
-        )
-        if hr_analysis:
-            st.code(hr_analysis[:300], language=None)
-
+# Valeurs par défaut (non exposées dans la sidebar)
+skill_path = str(DATA_DIR / "skills_reference.json")
+company_skill_path = str(DATA_DIR / "skills_company.json")
+ollama_model = "llama3.2:3b"
+emb_model_path = str(MODELS_DIR / "all-MiniLM-L6-v2") if MODELS_DIR.exists() else "models/all-MiniLM-L6-v2"
 
 with st.sidebar:
     # Wordmark TriCV
     st.markdown(SIDEBAR_BRAND_HTML, unsafe_allow_html=True)
 
-    st.header("Paramètres")
-    skill_path = st.text_input(
-        "Base de compétences générale",
-        value=str(DATA_DIR / "skills_reference.json"),
-    )
-    company_skill_path = st.text_input(
-        "Base de compétences entreprise (optionnel)",
-        value=str(DATA_DIR / "skills_company.json"),
-        help="Fichier JSON avec les compétences propres à votre entreprise. Laisser vide pour ne pas l'utiliser.",
-    )
-    if st.button("🔄 Recharger le référentiel", use_container_width=True):
-        load_skill_ref.clear()
-        st.rerun()
-
-    st.markdown("---")
     st.subheader("Sémantique (embeddings)")
-    # IMPORTANT: mets un chemin local vers un modèle déjà présent sur le disque
-    default_model = str(MODELS_DIR / "all-MiniLM-L6-v2") if MODELS_DIR.exists() else "models/all-MiniLM-L6-v2"
-    emb_model_path = st.text_input("Embedding model (local path)", value=default_model)
     semantic_threshold = st.slider("Seuil sémantique", 0.0, 1.0, 0.35, 0.01)
     breakpoint_percentile = st.slider(
         "Sensibilité chunking sémantique (%)",
@@ -227,20 +218,6 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("Scoring")
     verdict_threshold = st.slider("Seuil 'cohérent' (%)", 0, 100, 60, 5)
-
-    st.markdown("---")
-    st.subheader("Analyse RH")
-    _sidebar_token = os.environ.get("LLM_TOKEN", "").strip()
-    if _sidebar_token:
-        st.caption("✅ Analyse RH activée")
-    else:
-        st.caption("⚠️ LLM_TOKEN manquant — analyse RH désactivée")
-    ollama_model = "llama3.2:3b"   # non utilisé, gardé pour compatibilité des appels
-
-    st.caption("Embeddings : offline · LLM : chatbot interne")
-
-    # Footer classification
-    st.markdown(SIDEBAR_FOOTER_HTML, unsafe_allow_html=True)
 
 
 try:
@@ -326,6 +303,14 @@ with tab1:
                     key="profil_preview_tab1",
                 )
 
+    # ── Aperçu des documents uploadés (fermé par défaut) ─────────────────────
+    if cv_pdf:
+        with st.expander(f"Voir le CV — {cv_pdf.name}"):
+            _render_document_preview(cv_pdf.name, cv_pdf.getvalue())
+    if job_pdf:
+        with st.expander(f"Voir l'offre — {job_pdf.name}"):
+            _render_document_preview(job_pdf.name, job_pdf.getvalue())
+
     use_llm = st.checkbox("Générer une analyse RH", value=True, key="use_llm_tab1")
     run = st.button("Comparer", type="primary", use_container_width=True, key="run_pdf")
 
@@ -339,7 +324,6 @@ with tab1:
             st.stop()
 
         with st.spinner("Analyse en cours..."):
-            reset_llm_counter()
             d = analyze_candidate(
                 cv_bytes=cv_pdf.getvalue(),
                 cv_filename=cv_pdf.name,
@@ -352,8 +336,6 @@ with tab1:
                 ollama_model=ollama_model,
                 job_text_label=_job_label_tab1,
             )
-            st.session_state["last_llm_call_count"] = get_llm_call_count()
-
         if d["cv_warning"]:
             st.warning(f"CV — {d['cv_warning']}")
         if d["cv_ocr_used"]:
@@ -428,6 +410,11 @@ with tab3:
                     key="profil_preview_tab3",
                 )
 
+    # ── Aperçu de l'offre uploadée ───────────────────────────────────────────
+    if job_multi:
+        with st.expander(f"Voir l'offre — {job_multi.name}"):
+            _render_document_preview(job_multi.name, job_multi.getvalue())
+
     # ── 2. CVs des candidats ─────────────────────────────────────────────────
     st.markdown("#### 2. CVs des candidats")
 
@@ -462,7 +449,6 @@ with tab3:
         progress_bar = st.progress(0, text="Initialisation…")
         results_list = []
         errors = []
-        reset_llm_counter()
 
         for i, cv_file in enumerate(cv_files):
             progress_bar.progress(
@@ -490,7 +476,6 @@ with tab3:
                 errors.append(f"{cv_file.name} : erreur d'analyse — {exc}")
 
         progress_bar.progress(1.0, text="Analyse terminée.")
-        st.session_state["last_llm_call_count"] = get_llm_call_count()
 
         for err in errors:
             st.warning(err)
@@ -499,11 +484,12 @@ with tab3:
             results_list, key=lambda x: x["global_score"], reverse=True
         )
         st.session_state["multi_job_text"] = _job_text_tab3
+        st.session_state["multi_cv_bytes"] = {f.name: f.getvalue() for f in cv_files}
 
     # ── Affichage des résultats ──────────────────────────────────────────────
     if st.session_state.get("multi_results"):
         ranked = st.session_state["multi_results"]
-        job_text_multi = st.session_state.get("multi_job_text", "")
+        _cv_bytes_map = st.session_state.get("multi_cv_bytes", {})
         st.divider()
         st.subheader(f"Classement — {len(ranked)} candidat(s)")
 
@@ -597,8 +583,20 @@ with tab3:
                 f"#{rank} — {d['candidate_name']}  ·  compétences {skill_pct}% · sémantique {sem_pct}% {label_icon}",
                 expanded=(rank == 1),
             ):
-                render_result(
-                    d["_result"],
-                    hr_analysis=d["llm_analysis"],
-                    llm_error=d.get("llm_error"),
-                )
+                cv_name = d.get("cv_filename", "")
+                if cv_name and cv_name in _cv_bytes_map:
+                    _tab_results, _tab_cv = st.tabs(["Résultats", f"CV — {cv_name}"])
+                    with _tab_results:
+                        render_result(
+                            d["_result"],
+                            hr_analysis=d["llm_analysis"],
+                            llm_error=d.get("llm_error"),
+                        )
+                    with _tab_cv:
+                        _render_document_preview(cv_name, _cv_bytes_map[cv_name])
+                else:
+                    render_result(
+                        d["_result"],
+                        hr_analysis=d["llm_analysis"],
+                        llm_error=d.get("llm_error"),
+                    )
