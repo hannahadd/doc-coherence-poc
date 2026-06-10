@@ -4,13 +4,11 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# modèles & data 
-models/
-assets/models/
+# données brutes
 data/*.pdf
 *.pdf
 
-# outputs
-*.json
+# fichiers générés / exports de l'app
+classement_candidats.json
 *.log
 .env

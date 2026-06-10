@@ -1,0 +1,79 @@
+{
+  "_comment": "Variations françaises des compétences métier et managériales. Complète le référentiel anglais.",
+  "_comment2": "Règle : ne mettre ici que des compétences actionnables (méthodes, outils, domaines, langues).",
+  "_comment2": "Ne pas inclure les qualités comportementales (rigueur, autonomie, travail en équipe...).",
+
+  "technical_skills": [],
+
+  "variations": {
+    "project management": [
+      "gestion de projet", "gestion de projets", "gestion de projets informatiques",
+      "pilotage de projet", "pilotage projet", "chef de projet", "pilotage de bout en bout",
+      "conduite de projet", "management de projet", "project manager"
+    ],
+    "agile": [
+      "agile", "méthode agile", "methode agile", "agilité"
+    ],
+    "scrum": [
+      "scrum", "scrum master", "scrum methodology"
+    ],
+    "waterfall": [
+      "waterfall", "cycle en v", "méthode en v", "gestion en v"
+    ],
+    "stakeholder management": [
+      "stakeholder management", "gestion des parties prenantes", "pilotage transverse",
+      "management transverse", "animation transverse"
+    ],
+    "vendor management": [
+      "vendor management", "gestion des prestataires", "gestion de prestataires",
+      "pilotage prestataire", "pilotage des fournisseurs", "gestion fournisseurs"
+    ],
+    "change management": [
+      "change management", "conduite du changement", "accompagnement au changement"
+    ],
+    "risk management": [
+      "risk management", "gestion des risques", "analyse des risques",
+      "maitrise des risques", "maîtrise des risques"
+    ],
+    "budget management": [
+      "budget management", "gestion budgétaire", "gestion du budget",
+      "suivi budgétaire", "pilotage budgétaire"
+    ],
+    "reporting": [
+      "reporting", "rapport d'avancement", "tableau de bord", "tableaux de bord",
+      "suivi d'avancement"
+    ],
+    "requirements management": [
+      "requirements management", "cahier des charges", "expression de besoin",
+      "recueil des besoins", "analyse des besoins", "expression des besoins",
+      "rédaction de cahier des charges"
+    ],
+    "leadership": [
+      "leadership", "capacité à fédérer", "fédérer les équipes",
+      "animation d'équipe", "encadrement", "capacité de leadership"
+    ],
+    "english": [
+      "english", "anglais", "anglais courant", "anglais professionnel",
+      "environnement international", "environnement multiculturel", "bilingual", "bilingue"
+    ],
+    "cybersecurity": [
+      "cybersecurity", "cybersécurité", "sécurité informatique", "securite informatique"
+    ],
+    "digital transformation": [
+      "digital transformation", "transformation digitale", "transformation numérique",
+      "digital services", "services digitaux"
+    ],
+    "customer support": [
+      "customer support", "support client", "service client", "relation client",
+      "téléassistance", "teleassistance", "customer service"
+    ],
+    "e-learning": [
+      "e-learning", "digital training", "formation digitale", "lms",
+      "learning management system", "plateforme de formation"
+    ],
+    "kpi": [
+      "kpi", "indicateurs de performance", "indicateurs clés", "métriques",
+      "suivi des indicateurs", "tableau de bord kpi"
+    ]
+  }
+}
