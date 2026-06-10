@@ -8,7 +8,7 @@ numpy==2.4.2
 
 # ML / embeddings
 torch==2.10.0
-sentence-transformers==5.5.1
+sentence-transformers==5.2.2
 faiss-cpu==1.13.2
 
 # Multimodal
