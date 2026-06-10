@@ -1,12 +1,13 @@
 import os
 from dotenv import load_dotenv
 
-# Charge .env avant tout le reste (MISTRAL_API_KEY, etc.)
-# override=False : les variables d'environnement existantes ont priorité.
+# Charge .env avant tout le reste
 load_dotenv(override=False)
 
-# Doit être défini AVANT l'import de torch/faiss pour éviter le conflit libomp
-# (nécessaire sur macOS ; sans effet négatif sur Linux/Docker)
+# Ces variables DOIVENT être définies avant tout import de torch / transformers / sentence-transformers
+# pour garantir le mode offline complet (pas de tentative de connexion HuggingFace)
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
@@ -25,11 +26,6 @@ from src.job_offer_parser import extract_profil_section
 
 # ── Charte TriCV ──────────────────────────────────────────────────────────────
 from styles import CSS, HEADER_HTML, TOPBAR_HTML, SIDEBAR_BRAND_HTML
-
-
-# Force offline pour HF/Transformers (si le modèle est local, aucun souci)
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 st.set_page_config(
     page_title="TriCV — Analyse CV / Offre",
@@ -62,8 +58,7 @@ def load_skill_ref(base_path: str, company_path: str):
 
 @st.cache_resource
 def load_embedding_model(model_path: str) -> SentenceTransformer:
-    # Important: donne un chemin local (MODELS_DIR/...) pour rester offline
-    return SentenceTransformer(model_path)
+    return SentenceTransformer(model_path, local_files_only=True)
 
 
 
